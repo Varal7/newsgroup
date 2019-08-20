@@ -375,6 +375,9 @@ lda = models.LdaModel(
 
 # %%
 
-lda.show_topics()
+topics_matrix = lda.show_topics(formatted=False, num_words=20)
+topics_matrix
+
+lda.save("ldamodel")
 
 # %%
