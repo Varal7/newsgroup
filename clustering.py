@@ -15,12 +15,34 @@ categories = [
     'talk.politics.guns',
 ]
 
-newsgroup_train = fetch_20newsgroups(subset='train', categories=categories, remove=('headers', 'footers', 'quotes'))
-newsgroup_test = fetch_20newsgroups(subset='test', categories= categories, remove=('headers', 'footers', 'quotes'))
+newsgroup_train = fetch_20newsgroups(
+    subset='train',
+    categories=categories,
+    remove=('headers', 'footers', 'quotes'))
+newsgroup_test = fetch_20newsgroups(
+    subset='test',
+    categories=categories,
+    remove=('headers', 'footers', 'quotes'))
 train_data = newsgroup_train['data']
 test_data = newsgroup_test['data']
 y_train = newsgroup_train['target']
 y_test = newsgroup_test['target']
+
+# %%
+
+# Save data
+import json
+with open("train.jsonl", "w") as w:
+    for x, y in zip(train_data, y_train):
+        json.dump({"y": int(y), "x": x}, w)
+        w.write("\n")
+
+# %%
+
+with open("dev.jsonl", "w") as w:
+    for x, y in zip(test_data, y_test):
+        json.dump({"y": int(y), "x": x}, w)
+        w.write("\n")
 
 # %%
 
@@ -35,14 +57,17 @@ Counter(y_train)
 
 # Distribution of document length?
 
+import matplotlib
+matplotlib.use('Agg')
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import mpld3
 lengths = list(map(len, train_data))
 le = pd.Series(lengths)
 plt.clf()
-le[le<2000].hist()
-mpld3.show()
+le[le < 2000].hist()
+mpld3.show(open_browser=False)
 
 # %%
 
@@ -55,22 +80,24 @@ stopwords = nltk.corpus.stopwords.words('english')
 
 # Tokenizing + stemming
 
-
 import spacy
 import re
 from functools import partial
 nlp = spacy.load("en_core_web_sm", disable=['ner', 'parser', 'tagger'])
 
+
 def remove_spaces(tokens):
     return [token for token in tokens if not token.is_space]
 
-def tokenize(
-        text, nlp,
-        stemming=False, remove_stopwords=False, lowercase=False,
-        remove_nonwords=False):
+
+def tokenize(text,
+             nlp,
+             stemming=False,
+             remove_stopwords=False,
+             lowercase=False,
+             remove_nonwords=False):
     tokens = [
-        x.lemma_ if stemming else x.text
-        for x in remove_spaces(nlp(text))
+        x.lemma_ if stemming else x.text for x in remove_spaces(nlp(text))
     ]
     if lowercase:
         tokens = [t.lower() for t in tokens]
@@ -81,19 +108,26 @@ def tokenize(
 
     return tokens
 
+
 # %%
 
 example = train_data[0]
 
 tokenize_stem_fn = partial(
-        tokenize, nlp=nlp, stemming=True,
-        remove_stopwords=True, lowercase=True,
-        remove_nonwords=True)
+    tokenize,
+    nlp=nlp,
+    stemming=True,
+    remove_stopwords=True,
+    lowercase=True,
+    remove_nonwords=True)
 
 tokenize_only_fn = partial(
-        tokenize, nlp=nlp, stemming=False,
-        remove_stopwords=False, lowercase=False,
-        remove_nonwords=False)
+    tokenize,
+    nlp=nlp,
+    stemming=False,
+    remove_stopwords=False,
+    lowercase=False,
+    remove_nonwords=False)
 
 tokenize_stem_fn(example)
 tokenize_only_fn(example)
@@ -104,7 +138,8 @@ tokenize_only_fn(example)
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 
-tfidf_vectorizer = TfidfVectorizer(max_df=0.8, max_features=200000, tokenizer=tokenize_stem_fn)
+tfidf_vectorizer = TfidfVectorizer(
+    max_df=0.8, max_features=200000, tokenizer=tokenize_stem_fn)
 X_train = tfidf_vectorizer.fit_transform(train_data)
 X_test = tfidf_vectorizer.transform(test_data)
 X_train.shape
@@ -121,9 +156,10 @@ from sklearn import metrics
 clf = MultinomialNB(alpha=0.01)
 clf.fit(X_train, y_train)
 pred = clf.predict(X_test)
-metrics.f1_score(y_test, pred, average="macro")
+accuracy = metrics.accuracy_score(y_test, pred)
+accuracy
 
-# F1: 0.87506
+# Accuracy : 0.8738
 
 # %%
 
@@ -132,7 +168,8 @@ import numpy as np
 
 for i, category in enumerate(categories):
     best_features = np.argsort(clf.coef_[i])[-10:]
-    print("{}: {}".format(category, " ".join(np.asarray(terms)[best_features])))
+    print(
+        "{}: {}".format(category, " ".join(np.asarray(terms)[best_features])))
 
 # %%
 
@@ -153,13 +190,15 @@ from itertools import permutations
 best_key = None
 best_score = None
 for key in permutations(list(range(num_clusters))):
-    score = metrics.f1_score(y_train, np.array(key)[clusters], average="macro")
+    score = metrics.accuracy_score(y_train, np.array(key)[clusters])
     if best_score is None or score > best_score:
         best_score = score
         best_key = key
 
-best_score
 best_key = np.array(best_key)
+best_score
+
+# 0.5767
 
 # %%
 
@@ -179,9 +218,9 @@ for i in range(num_clusters):
 kmeans_pred = km.predict(X_test)
 
 pred = best_key[kmeans_pred]
-metrics.f1_score(y_test, pred, average="macro")
+metrics.accuracy_score(y_test, pred)
 
-# F1: 0.6098
+# F1: 0.5547
 
 # %%
 
@@ -192,21 +231,27 @@ mds = MDS()
 pos = mds.fit_transform(X_train.toarray())
 xs, ys = pos[:, 0], pos[:, 1]
 
-
 # %%
 
-cluster_colors = {0: '#1b9e77', 1: '#d95f02', 2: '#7570b3', 3: '#e7298a', 4: '#66a61e', 5: '#2233cc'}
+cluster_colors = {
+    0: '#1b9e77',
+    1: '#d95f02',
+    2: '#7570b3',
+    3: '#e7298a',
+    4: '#66a61e',
+    5: '#2233cc'
+}
 cluster_names = categories
 
 n_points = 100
 
-df = pd.DataFrame(dict(
-    x=xs[:n_points],
-    y=ys[:n_points],
-    #  label=best_key[clusters[:n_points]],
-    label=y_train[:n_points],
-    excerpt=[x[:200] for x in train_data[:100]]
-))
+df = pd.DataFrame(
+    dict(
+        x=xs[:n_points],
+        y=ys[:n_points],
+        #  label=best_key[clusters[:n_points]],
+        label=y_train[:n_points],
+        excerpt=[x[:200] for x in train_data[:100]]))
 
 # %%
 
@@ -232,6 +277,7 @@ margin-left: -200px;
 weight: 200px;
 }
 """
+
 
 #define custom toolbar location
 class TopToolbar(mpld3.plugins.PluginBase):
@@ -260,25 +306,33 @@ class TopToolbar(mpld3.plugins.PluginBase):
       this.fig.toolbar.draw = function() {}
     }
     """
+
     def __init__(self):
         self.dict_ = {"type": "toptoolbar"}
 
+
 # Plot
-fig, ax = plt.subplots(figsize=(14,6)) #set plot size
+fig, ax = plt.subplots(figsize=(14, 6))  #set plot size
 ax.margins(0.03)  # Optional, just adds 5% padding to the autoscaling
 
 #iterate through groups to layer the plot
 #note that I use the cluster_name and cluster_color dicts with the 'name' lookup to return the appropriate color/label
 for name, group in groups:
-    points = ax.plot(group.x, group.y, marker='o', linestyle='', ms=18,
-                     label=cluster_names[name], mec='none',
-                     color=cluster_colors[name])
+    points = ax.plot(
+        group.x,
+        group.y,
+        marker='o',
+        linestyle='',
+        ms=18,
+        label=cluster_names[name],
+        mec='none',
+        color=cluster_colors[name])
     ax.set_aspect('auto')
     labels = [i for i in group.excerpt]
 
     #set tooltip using points, labels and the already defined 'css'
-    tooltip = mpld3.plugins.PointHTMLTooltip(points[0], labels,
-                                       voffset=10, hoffset=10, css=css)
+    tooltip = mpld3.plugins.PointHTMLTooltip(
+        points[0], labels, voffset=10, hoffset=10, css=css)
     #connect tooltip to fig
     mpld3.plugins.connect(fig, tooltip, TopToolbar())
 
@@ -289,7 +343,6 @@ for name, group in groups:
     #set axis as blank
     ax.axes.get_xaxis().set_visible(False)
     ax.axes.get_yaxis().set_visible(False)
-
 
 ax.legend(numpoints=1)  # show legend with only one dot
 
@@ -312,15 +365,16 @@ corpus = [dictionary.doc2bow(text) for text in tokenized_train]
 
 # %%
 
-lda = models.LdaModel(corpus, num_topics=6,
-                            id2word=dictionary,
-                            update_every=5,
-                            chunksize=10000,
-                            passes=100)
+lda = models.LdaModel(
+    corpus,
+    num_topics=6,
+    id2word=dictionary,
+    update_every=5,
+    chunksize=10000,
+    passes=100)
 
 # %%
 
 lda.show_topics()
 
 # %%
-
